@@ -1,0 +1,90 @@
+{
+  "id": "lacartoons",
+  "name": "LACartoons",
+  "version": "0.1.0",
+  "apiVersion": 9,
+  "entry": "plugin.js",
+  "icon": "icon.png",
+  "description": "Dibujos animados clásicos doblados al español de lacartoons.com: por cadena (Nickelodeon, Cartoon Network, Disney…), con sección propia, categorías, temporadas y capítulos.",
+  "author": "xuper-plugin",
+  "homepage": "https://github.com/xuper-plugin/kino-plugin-lacartoons",
+  "hosts": [
+    "lacartoons.com",
+    "www.lacartoons.com",
+    "ok.ru",
+    "cubeembed.rpmvid.com",
+    "rpmvid.com"
+  ],
+  "capabilities": [
+    "search",
+    "home",
+    "browse",
+    "episodes",
+    "resolve",
+    "download"
+  ],
+  "streamHosts": "any",
+  "categories": [
+    "series"
+  ],
+  "color": "#F59E0B",
+  "section": {
+    "label": "Dibujos",
+    "labelEn": "Cartoons"
+  },
+  "theme": {
+    "accent": "#F59E0B",
+    "onAccent": "#1A1203",
+    "background": "#14110A",
+    "surface": "#241D10",
+    "highlight": "#FCD34D"
+  },
+  "settings": [
+    {
+      "key": "serverSection",
+      "type": "section",
+      "label": "Servidor",
+      "labelEn": "Server",
+      "hint": "Cada capítulo ofrece hasta dos reproductores; Kino abre el primero que funcione.",
+      "hintEn": "Each episode offers up to two players; Kino opens the first that works."
+    },
+    {
+      "key": "server",
+      "type": "select",
+      "label": "Servidor preferido",
+      "labelEn": "Preferred server",
+      "default": "auto",
+      "options": [
+        {
+          "value": "auto",
+          "label": "Automático",
+          "labelEn": "Automatic"
+        },
+        {
+          "value": "okru",
+          "label": "ok.ru",
+          "labelEn": "ok.ru"
+        },
+        {
+          "value": "rpmvid",
+          "label": "RPMVid",
+          "labelEn": "RPMVid"
+        }
+      ]
+    },
+    {
+      "key": "info",
+      "type": "status",
+      "label": "Estado",
+      "labelEn": "Status"
+    },
+    {
+      "key": "clearCache",
+      "type": "action",
+      "label": "Vaciar caché",
+      "labelEn": "Clear cache",
+      "confirm": "¿Vaciar la caché de listas?",
+      "confirmEn": "Clear the list cache?"
+    }
+  ]
+}
