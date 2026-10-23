@@ -1,4 +1,4 @@
-Kino plugin "LACartoons". Site behaviour (the series pages, the episode pages and the RPMVid player's API) was read from the live site
+Kino plugin "LA Cartoons Plus". Site behaviour (the series pages, the episode pages and the RPMVid player's API) was read from the live site
 and from the CloudStream provider "LACartoonsProvider" in redblacker8/storm-ext (a fork of Stormunblessed/storm-ext); no code was
 copied from it. The ok.ru extractor, the packer reader and the request helper are adapted from the Kino plugin "Latino"
 (xuper-plugin/kino-plugin-latino, Apache-2.0), by the same author.

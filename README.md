@@ -1,4 +1,4 @@
-# LACartoons para Kino
+# LA Cartoons Plus para Kino
 
 Plugin de [Kino](https://github.com/kinotvapp/kino-light) para ver **dibujos animados clásicos doblados al español** de
 [lacartoons.com](https://www.lacartoons.com/): unos 400, organizados por la cadena de TV que los emitió.
@@ -22,7 +22,7 @@ xuper-plugin/kino-plugin-lacartoons
 - **Series con sus temporadas y capítulos**, con sinopsis, carátula y fondo del sitio.
 - **Reproducción** con los dos reproductores del sitio: ok.ru (un MP4) y RPMVid (HLS). Kino abre el primero que funcione y deja el otro en
   el menú **Servidor**. También se puede **descargar**.
-- **Ajustes ▸ LACartoons**: servidor preferido (automático, ok.ru o RPMVid) y vaciar la caché.
+- **Ajustes ▸ LA Cartoons Plus**: servidor preferido (automático, ok.ru o RPMVid) y vaciar la caché.
 - Las carátulas son las del propio sitio. El icono usa su marca: el texto «LACARTOONS» en la tipografía Luckiest Guy (licencia libre) que el
   sitio emplea en su cabecera.
 

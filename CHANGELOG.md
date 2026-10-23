@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- The plugin is now called **LA Cartoons Plus** (its id, `lacartoons`, stays, so installed copies keep updating).
+  / El plugin ahora se llama **LA Cartoons Plus** (su id, `lacartoons`, no cambia: las copias instaladas se siguen actualizando).
+
 ## 0.1.1
 
 - `telemetry` added: with the person's consent, failed calls send their log lines to Kino's error log.

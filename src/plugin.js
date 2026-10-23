@@ -1,5 +1,5 @@
 // @ts-check
-// Kino plugin: LACartoons -- classic cartoons dubbed in Spanish from www.lacartoons.com, sorted by the TV network that aired them.
+// Kino plugin: LA Cartoons Plus -- classic cartoons dubbed in Spanish from www.lacartoons.com, sorted by the TV network that aired them.
 // Home rows, a section of its own (a tab per network), categories, search, seasons and episodes come from the site; an episode's players
 // (RPMVid and ok.ru) are opened with the extractors in ./extractors. The site's images load for Kino, so the covers are the site's own.
 // Declared hosts: the site and the two players. `streamHosts: "any"` is for the CDNs the playlists sit on.
@@ -132,7 +132,7 @@ export async function episodes(ref) {
 
 // ---- resolve ----
 
-/** Which player to open first: Ajustes ▸ LACartoons (ok.ru by default: a plain MP4; RPMVid is HLS and needs its Referer). */
+/** Which player to open first: Ajustes ▸ LA Cartoons Plus (ok.ru by default: a plain MP4; RPMVid is HLS and needs its Referer). */
 function order(embeds) {
   let pref = "auto";
   try { pref = String(kino.config.get("server") || "auto"); } catch (_) { pref = "auto"; }
@@ -176,7 +176,7 @@ export async function resolve(ref) {
   throw kino.error("not_found", "no player opened for " + pageUrl, { userMessage: t("noStreams") });
 }
 
-// ---- Ajustes ▸ LACartoons ----
+// ---- Ajustes ▸ LA Cartoons Plus ----
 
 export async function settingsStatus() {
   let n = 0;
