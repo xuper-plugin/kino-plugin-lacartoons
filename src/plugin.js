@@ -7,6 +7,7 @@
 import { SITE, NETWORKS, parseCards, parseSeries, parseEmbeds } from "./lacartoons.js";
 import { extractorFor } from "./extractors/index.js";
 import { makeReq, UA } from "./util/http.js";
+import { searchWithTerms } from "./util/terms.js";
 
 const RESOLVE_MS = 40000;
 const MAX_COPIES = 5;
@@ -46,6 +47,7 @@ async function cached(key, fn) {
     if (e && Date.now() - e.at < CACHE_MS) return e.v;
   } catch (_) { /* no cache */ }
   const v = await fn();
+  if (Array.isArray(v) && !v.length) return v; // an empty answer may be a throttle or a hiccup: not kept
   try { kino.storage.set("c:" + key, JSON.stringify({ at: Date.now(), v }), { ttlMs: CACHE_MS }); } catch (_) { /* a full storage only costs a refetch */ }
   return v;
 }
@@ -87,12 +89,14 @@ export async function browse(ref, cursor) {
   return { items: cards.map((c) => toItem(c, network)), next: cards.length >= 16 ? String(page + 1) : undefined };
 }
 
-export async function search(arg) {
+async function searchOne(arg) {
   const q = String((typeof arg === "string" ? arg : arg && arg.q) || "").trim();
   if (q.length < 1) return [];
   const cards = await cached("s:" + q.toLowerCase(), async () => parseCards(await getPage(`${SITE}/?Titulo=${encodeURIComponent(q)}`)));
   return cards.slice(0, 60).map((c) => toItem(c));
 }
+
+export const search = (arg) => searchWithTerms(arg, searchOne);
 
 // ---- the plugin's own section and categories ----
 

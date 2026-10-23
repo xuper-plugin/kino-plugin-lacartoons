@@ -195,6 +195,31 @@ function makeReq(kino2, { deadline }) {
   return req;
 }
 
+// src/util/terms.js
+function searchTerms(arg) {
+  const q = String((typeof arg === "string" ? arg : arg && arg.q) || "").trim();
+  const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  const out = [];
+  const add = (s) => {
+    const v = String(s || "").trim();
+    if (v.length >= 1 && !out.some((x) => norm(x) === norm(v))) out.push(v);
+  };
+  add(q);
+  if (arg && typeof arg === "object") {
+    add(arg.originalTitle);
+    for (const a of Array.isArray(arg.altTitles) ? arg.altTitles : []) add(a);
+  }
+  add(q.split(/\s*[:\-–—]\s*/)[0]);
+  return out.slice(0, 4);
+}
+async function searchWithTerms(arg, one) {
+  for (const q of searchTerms(arg)) {
+    const found = await one(arg && typeof arg === "object" ? { ...arg, q } : q);
+    if (found.length) return found;
+  }
+  return [];
+}
+
 // src/plugin.js
 var RESOLVE_MS = 4e4;
 var MAX_COPIES = 5;
@@ -242,6 +267,7 @@ async function cached(key, fn) {
   } catch (_) {
   }
   const v = await fn();
+  if (Array.isArray(v) && !v.length) return v;
   try {
     kino.storage.set("c:" + key, JSON.stringify({ at: Date.now(), v }), { ttlMs: CACHE_MS });
   } catch (_) {
@@ -282,12 +308,13 @@ async function browse(ref, cursor) {
   const cards = await networkPage(network, page);
   return { items: cards.map((c) => toItem(c, network)), next: cards.length >= 16 ? String(page + 1) : void 0 };
 }
-async function search(arg) {
+async function searchOne(arg) {
   const q = String((typeof arg === "string" ? arg : arg && arg.q) || "").trim();
   if (q.length < 1) return [];
   const cards = await cached("s:" + q.toLowerCase(), async () => parseCards(await getPage(`${SITE}/?Titulo=${encodeURIComponent(q)}`)));
   return cards.slice(0, 60).map((c) => toItem(c));
 }
+var search = (arg) => searchWithTerms(arg, searchOne);
 async function section({ tab } = {}) {
   const tabs = NETWORKS.map((n) => ({ id: n.slug, label: n.title }));
   const network = NETWORKS.find((n) => n.slug === tab) || NETWORKS[0];
