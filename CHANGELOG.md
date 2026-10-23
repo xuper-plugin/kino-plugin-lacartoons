@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- `telemetry` added: with the person's consent, failed calls send their log lines to Kino's error log.
+  / Se agrega `telemetry`: con permiso de la persona, las llamadas que fallan envían sus líneas al registro de errores de Kino.
+
 ## 0.1.0
 
 - First version, built on Kino's plugin API from the start: eight **Home rows** (one per TV network: Nickelodeon, Cartoon Network, Fox Kids,
