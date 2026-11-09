@@ -10,6 +10,13 @@ import { makeReq, UA } from "./util/http.js";
 import { searchWithTerms } from "./util/terms.js";
 import { homeWithin } from "./util/home.js";
 
+// Kino waits for every request a call left running before it delivers the call's answer (quickjs-kt joins the pending async work), so a Home that
+// gave up on a slow row at its own budget was still held until that row's request ended, or retried: measured on users' devices Home ran 21-34 s
+// with rows logged as "skipped: its source did not answer in time", and Kino threw the whole answer away at 20 s. Asking Kino to drop what a call
+// leaves running (the prelude reads this flag after every call; Kino 0.9.55 and later, an older one ignores it) lets the answer leave at the budget.
+globalThis.__kinoDropPendingFetches = true;
+
+
 const RESOLVE_MS = 40000;
 const MAX_COPIES = 5;
 const CACHE_MS = 10 * 60 * 1000;

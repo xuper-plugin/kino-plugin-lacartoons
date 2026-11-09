@@ -264,6 +264,7 @@ async function homeWithin(jobs, { key = "home:last", budgetMs = BUDGET_MS } = {}
 }
 
 // src/plugin.js
+globalThis.__kinoDropPendingFetches = true;
 var RESOLVE_MS = 4e4;
 var MAX_COPIES = 5;
 var CACHE_MS = 10 * 60 * 1e3;
