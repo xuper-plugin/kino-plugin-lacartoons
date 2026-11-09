@@ -220,6 +220,49 @@ async function searchWithTerms(arg, one) {
   return [];
 }
 
+// src/util/home.js
+var BUDGET_MS = 11e3;
+var KEEP_MS = 12 * 60 * 60 * 1e3;
+var MAX_CHARS = 60 * 1024;
+function keep(key, rows) {
+  try {
+    for (let per = 20; per >= 4; per -= 4) {
+      const text = JSON.stringify({ at: Date.now(), rows: rows.map((r) => ({ ...r, items: Array.isArray(r.items) ? r.items.slice(0, per) : r.items })) });
+      if (text.length <= MAX_CHARS) {
+        kino.storage.set(key, text, { ttlMs: KEEP_MS });
+        return;
+      }
+    }
+  } catch (_) {
+  }
+}
+function kept(key) {
+  try {
+    const o = JSON.parse(kino.storage.get(key) || "null");
+    return o && Date.now() - o.at < KEEP_MS && Array.isArray(o.rows) && o.rows.length ? o.rows : null;
+  } catch (_) {
+    return null;
+  }
+}
+async function homeWithin(jobs, { key = "home:last", budgetMs = BUDGET_MS } = {}) {
+  const out = jobs.map(() => null);
+  let done = false;
+  const all = Promise.all(jobs.map((job, i) => Promise.resolve().then(job).then((row) => {
+    out[i] = row;
+  }, () => {
+  }))).then(() => {
+    done = true;
+  });
+  const end = Date.now() + budgetMs;
+  while (!done && Date.now() < end) await Promise.race([all, kino.sleep(Math.min(250, Math.max(1, end - Date.now())))]);
+  const rows = out.filter(Boolean);
+  if (rows.length) {
+    keep(key, rows);
+    return rows;
+  }
+  return kept(key) || [];
+}
+
 // src/plugin.js
 var RESOLVE_MS = 4e4;
 var MAX_COPIES = 5;
@@ -298,7 +341,7 @@ async function rowOf(network) {
   return items.length ? { id: network.slug, title: network.title, items, ref: "cat:" + network.id, genre: "infantil" } : null;
 }
 async function home() {
-  return (await Promise.all(NETWORKS.map((n) => safeRow(n.slug, () => rowOf(n))))).filter(Boolean);
+  return homeWithin(NETWORKS.map((n) => () => safeRow(n.slug, () => rowOf(n))));
 }
 async function browse(ref, cursor) {
   const m = /^cat:(\d)$/.exec(String(ref || ""));

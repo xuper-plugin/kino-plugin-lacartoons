@@ -8,6 +8,7 @@ import { SITE, NETWORKS, parseCards, parseSeries, parseEmbeds } from "./lacartoo
 import { extractorFor } from "./extractors/index.js";
 import { makeReq, UA } from "./util/http.js";
 import { searchWithTerms } from "./util/terms.js";
+import { homeWithin } from "./util/home.js";
 
 const RESOLVE_MS = 40000;
 const MAX_COPIES = 5;
@@ -77,7 +78,7 @@ async function rowOf(network) {
 // ---- exports ----
 
 export async function home() {
-  return (await Promise.all(NETWORKS.map((n) => safeRow(n.slug, () => rowOf(n))))).filter(Boolean);
+  return homeWithin(NETWORKS.map((n) => () => safeRow(n.slug, () => rowOf(n))));
 }
 
 export async function browse(ref, cursor) {
