@@ -76,7 +76,10 @@ test("the manifest passes the kit's contract check, declares the site and uses t
   assert.ok(!v.errors?.length && v.ok !== false, JSON.stringify(v));
   for (const h of ["www.lacartoons.com", "lacartoons.com"]) assert.ok(m.hosts.includes(h), h);
   assert.deepEqual(m.recommends, ["xuper-plugin/kino-plugin-kino-resolver"]);
-  assert.deepEqual(m.enhancements["20"].consumes.resolver, { repo: "xuper-plugin/kino-plugin-kino-resolver", door: "resolver", calls: ["resolve"] });
+  assert.equal(m.apiVersion, 20);
+  assert.equal(m.browser, true);
+  assert.ok(m.capabilities.includes("screen") && m.screen);
+  assert.deepEqual(m.consumes.resolver, { repo: "xuper-plugin/kino-plugin-kino-resolver", door: "resolver", calls: ["resolve"] });
   assert.ok(m.capabilities.includes("download") && m.section && m.theme && m.icon);
 });
 
@@ -222,4 +225,26 @@ test("settings: the status line counts the lists kept and the action clears them
   assert.match((await plugin.settingsStatus()).info, /Lists kept: 1/);
   assert.equal((await plugin.action("clearCache")).message, "Cache cleared.");
   assert.equal(store.size, 0);
+});
+
+test("the screen is the install gate until the resolver is installed, then the browse screen with a tab per network", async () => {
+  const gate = JSON.stringify(await plugin.screen({ device: "phone", installed: {} }));
+  assert.match(gate, /Instalar Kino Resolver/);
+  assert.match(gate, /installPlugin/);
+  assert.match(gate, /"key":"donate"/);
+  assert.match(JSON.stringify(await plugin.screen({ device: "tv", installed: {} })), /QrImage/);
+  const browse = JSON.stringify(await plugin.screen({ device: "phone", installed: { "xuper-plugin/kino-plugin-kino-resolver": true } }));
+  assert.ok(!/Instalar Kino Resolver/.test(browse));
+});
+
+test("resolve: RPMVid, which the resolver can't open inline, plays from the hidden browser; one failed page spends the budget", async () => {
+  installEpisode(500, 2, [RPM]);
+  const pages = [];
+  globalThis.kino.browser = { capture: async (url) => { pages.push(url); return { media: [{ url: "https://cdn.test/turbo/master.m3u8", headers: { Referer: "https://turboembed.com/" } }] }; } };
+  try {
+    const s = await plugin.resolve("e:500:2");
+    assert.equal(s.label, "RPMVid");
+    assert.equal(s.url, "https://cdn.test/turbo/master.m3u8");
+    assert.equal(pages.length, 1);
+  } finally { delete globalThis.kino.browser; }
 });

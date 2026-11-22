@@ -6,6 +6,8 @@
 
 import { SITE, NETWORKS, parseCards, parseSeries, parseEmbeds } from "./lacartoons.js";
 import { makeReq, UA } from "./util/http.js";
+import { makeBrowse } from "./browse/index.js";
+import { RESOLVER_REPO, resolveViaHelper, resolverInstalled } from "./resolve-door.js";
 import { searchWithTerms } from "./util/terms.js";
 import { homeWithin } from "./util/home.js";
 
@@ -27,13 +29,13 @@ const STRINGS = {
     more: "Más de", heroText: "Dibujos animados clásicos, doblados al español.", series: "Serie", season: "Temporada", episode: "Capítulo",
     unavailable: "El servicio no está disponible en este momento.", noEpisodes: "No se encontraron capítulos de esta serie.", noStreams: "Ningún servidor de este capítulo abrió. Prueba más tarde.",
     statusLine: "Listas guardadas: {n}", cacheCleared: "Caché vaciada.",
-    needResolver: "Para reproducir, instala el motor de reproducción desde la tienda de plugins (es gratis).",
+    needResolver: "Para reproducir, abre LA Cartoons Plus desde el menú e instala el motor de reproducción que te pedirá.",
   },
   en: {
     more: "More from", heroText: "Classic cartoons, dubbed in Spanish.", series: "Series", season: "Season", episode: "Episode",
     unavailable: "The service is not available right now.", noEpisodes: "No episodes found for this series.", noStreams: "No server of this episode opened. Try again later.",
     statusLine: "Lists kept: {n}", cacheCleared: "Cache cleared.",
-    needResolver: "To play, install the playback engine from the plugin store (it is free).",
+    needResolver: "To play, open LA Cartoons Plus from the menu and install the playback engine it asks for.",
   },
 };
 const t = (key) => {
@@ -157,7 +159,7 @@ function kindOf(url) {
 const NAMES = { okru: "ok.ru", rpmvid: "RPMVid", vidhide: "VidHide", streamwish: "StreamWish" };
 const labelOf = (p) => NAMES[p.kind] || p.kind;
 // The usual order, before anything is learned: the players the resolver reads quickly first; RPMVid last (since 2026-11 it only
-// redirects to a player that needs a browser, which this plugin does not use).
+// redirects to a player, turboembed, that plays in the hidden browser: a capture of up to 20 s).
 const STATIC = ["vidhide", "streamwish", "okru"];
 const staticRank = (k) => { const i = STATIC.indexOf(k); return k === "rpmvid" ? 99 : i < 0 ? STATIC.length : i; };
 
@@ -186,10 +188,14 @@ function noteServer(k, ok) {
   } catch (_) { /* the stats are a nicety */ }
 }
 
-/** True unless the shared kino-resolver is missing (a cheap door probe; only provider_missing means "not installed"). */
-async function resolverInstalled() {
-  try { await kino.plugins.call("resolver", "normalizeHost", { url: "https://probe.invalid/" }); return true; }
-  catch (e) { return (e && e.code) !== "provider_missing"; }
+// A hidden-browser capture costs up to 20 s whether or not it finds the video, so the budget is spent on the ATTEMPT, and a capture
+// only starts if a whole page still fits before this resolve's deadline.
+const MAX_CAPTURES = 2;
+const CAPTURE_PAGE_MS = 23000;
+function takeCapture(budget) {
+  if (!budget || budget.captures <= 0 || budget.deadline - Date.now() < CAPTURE_PAGE_MS) return false;
+  budget.captures -= 1;
+  return true;
 }
 
 /** Whether a stream answers: a 2 KB peek (maxBytes + Range); a playlist must read like one; a 401/403 (a token) is trusted. */
@@ -204,19 +210,17 @@ async function answers(stream) {
   }
 }
 
-/** One player opened through the shared kino-resolver; its stream is peeked at first. Null when nothing plays. */
-async function open(p) {
+/**
+ * One player opened through the shared kino-resolver; one it can't open inline (RPMVid's turboembed, a gated host) is captured in
+ * LA Cartoons Plus's own hidden WebView while the budget allows. A resolved stream is peeked at first. Null when nothing plays.
+ */
+async function open(p, budget) {
   try {
-    const res = await kino.plugins.call("resolver", "resolve", { url: p.url, referer: SITE + "/" });
-    const st = (res && Array.isArray(res.streams) ? res.streams : []).find((x) => x && x.url);
-    if (!st) { kino.log("[lacartoons]", p.kind, (res && res.error) || "no_stream"); return null; }
-    const headers = { "User-Agent": UA };
-    if (st.referer) headers.Referer = st.referer;
-    if (Array.isArray(st.headers)) for (const h of st.headers) { if (h && h.name) headers[h.name] = String(h.value); }
-    const hls = st.kind === "hls" || /\.m3u8(\?|$)/i.test(st.url);
-    const mime = hls ? "application/vnd.apple.mpegurl" : /\.mp4(\?|$)/i.test(st.url) ? "video/mp4" : undefined;
-    const stream = { url: st.url, ...(mime ? { mime } : {}), headers, label: labelOf(p) };
-    return (await answers(stream)) ? stream : null;
+    const out = await resolveViaHelper(p.url, kino, SITE + "/", () => takeCapture(budget));
+    if (!out || typeof out.url !== "string" || !out.url) { kino.log("[lacartoons]", p.kind, "no_stream"); return null; }
+    const stream = { url: out.url, ...(out.mime ? { mime: out.mime } : {}), headers: { "User-Agent": UA, ...(out.headers || {}) }, label: labelOf(p) };
+    if (out.subtitles) stream.subtitles = out.subtitles;
+    return out.captured || (await answers(stream)) ? stream : null;
   } catch (e) {
     kino.log("[lacartoons]", p.kind, (e && e.code) || "resolve_failed");
     return null;
@@ -228,7 +232,7 @@ export async function resolve(ref) {
   const m = /^(?:e:(\d+):(\d+)|c:(\d+):(\d+):(\d))$/.exec(String(ref || ""));
   if (!m) throw kino.error("not_found", "unknown ref: " + ref);
   // LA Cartoons Plus plays nothing on its own: the shared kino-resolver opens the players.
-  if (!(await resolverInstalled())) throw kino.error("unavailable", "resolver missing", { userMessage: t("needResolver") });
+  if (!(await resolverInstalled(kino))) throw kino.error("unavailable", "resolver missing", { userMessage: t("needResolver") });
   const id = m[1] || m[3], season = m[2] || m[4];
   const only = m[5] != null ? Number(m[5]) : null;
   const pageUrl = `${SITE}/serie/capitulo/${id}?t=${season}`;
@@ -237,12 +241,13 @@ export async function resolve(ref) {
 
   // The automatic pick tries the player that has loaded best for this person first; the lazy refs keep the stable order.
   const stats = readStats();
+  const budget = { captures: MAX_CAPTURES, deadline: Date.now() + RESOLVE_MS };
   const indexes = only != null ? [only] : players.map((_, i) => i).sort((a, b) => scoreOf(players[b].kind, stats) - scoreOf(players[a].kind, stats) || a - b);
   const failures = [];
   for (const i of indexes) {
     const p = players[i];
     if (!p) continue;
-    const stream = await open(p);
+    const stream = await open(p, budget);
     noteServer(p.kind, !!stream);
     if (!stream) { failures.push(`${p.kind}: no stream`); continue; }
     if (only == null) {
@@ -269,4 +274,56 @@ export async function action(key) {
     return { message: t("cacheCleared") };
   }
   return { message: "" };
+}
+
+// ---- browse screen + Kino Resolver install gate ----
+
+const SUPPORT_URL = "https://ko-fi.com/xuperplugins";
+
+/** The donate affordance under every install button: a QR on TV (a TV can't open a link well), a heart button on phone/desktop. */
+function supportNode(device) {
+  if (device === "tv") return { type: "QrImage", value: SUPPORT_URL, size: "large", labelText: "Si te gusta mi trabajo, escanéalo y apóyame", labelTextEn: "If you like my work, scan it and support me" };
+  return { type: "ElevatedButton", key: "donate", icon: "heart", labelText: "Si te gusta mi trabajo, apóyame", labelTextEn: "If you like my work, support me", onPressed: { go: { url: { href: SUPPORT_URL } } } };
+}
+
+/** The install gate: the first screen while the shared kino-resolver (the engine LA Cartoons Plus plays through) is not installed.
+ *  The donate button sits under the install button, as on every gate. */
+function installGateView(device) {
+  return { type: "Scaffold", key: "lacartoons-install",
+    body: { type: "SingleChildScrollView", key: "installScroll", children: [
+      { type: "Column", padding: 24, gap: 16, crossAxisAlignment: "stretch", children: [
+        { type: "Text", text: "Necesitas el motor de reproducción", textEn: "You need the playback engine", style: "h3" },
+        { type: "Text", color: "secondary", text: "LA Cartoons Plus reproduce a través de Kino Resolver (gratis). Instálalo una vez y sirve para este y para otros plugins de sitios.", textEn: "LA Cartoons Plus plays through Kino Resolver (free). Install it once and it works here and in other site plugins." },
+        { type: "ElevatedButton", key: "installResolver", labelText: "Instalar Kino Resolver", labelTextEn: "Install Kino Resolver", onPressed: { go: { installPlugin: { repo: RESOLVER_REPO } } } },
+        supportNode(device),
+      ] },
+    ] },
+  };
+}
+
+/** The tabs of the own browse screen: one per TV network, the same ones section() serves. */
+const SCREEN_TABS = NETWORKS.map((n) => ({ id: n.slug, es: n.title, en: n.title }));
+
+let browseInstance = null;
+const browseScreen = () => (browseInstance ??= makeBrowse({
+  kino,
+  brand: "LA Cartoons Plus",
+  tabs: SCREEN_TABS,
+  loadTab: async (tabId) => ({ rows: (await section({ tab: tabId })).rows }),
+  searchTitles: (q) => search({ q }),
+  canPlay: false,
+}));
+
+/** `screen(ctx)`: the install gate while the resolver is missing, the rich browse screen (a tab per network) once it is there. */
+export async function screen(ctx) {
+  await null;
+  const c = ctx && typeof ctx === "object" ? ctx : {};
+  if (!(c.installed && c.installed[RESOLVER_REPO])) return installGateView(c.device);
+  return browseScreen().view(c);
+}
+
+/** `screenEvent(ev)`: the screen's events (its timers load a tab or a search, one per call). */
+export async function screenEvent(ev) {
+  await null;
+  return browseScreen().event(ev && typeof ev === "object" ? ev : {});
 }

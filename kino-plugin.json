@@ -1,8 +1,8 @@
 {
   "id": "lacartoons",
   "name": "LA Cartoons Plus",
-  "version": "0.2.0",
-  "apiVersion": 9,
+  "version": "0.3.0",
+  "apiVersion": 20,
   "entry": "plugin.js",
   "icon": "icon.png",
   "description": "Dibujos animados clásicos doblados al español de lacartoons.com: por cadena (Nickelodeon, Cartoon Network, Disney…), con sección propia, categorías, temporadas y capítulos.",
@@ -21,7 +21,8 @@
     "browse",
     "episodes",
     "resolve",
-    "download"
+    "download",
+    "screen"
   ],
   "streamHosts": "any",
   "categories": [
@@ -91,17 +92,29 @@
   "recommends": [
     "xuper-plugin/kino-plugin-kino-resolver"
   ],
-  "enhancements": {
-    "20": {
-      "consumes": {
-        "resolver": {
-          "repo": "xuper-plugin/kino-plugin-kino-resolver",
-          "door": "resolver",
-          "calls": [
-            "resolve"
-          ]
-        }
-      }
+  "browser": true,
+  "screen": {
+    "label": "LA Cartoons Plus",
+    "labelEn": "LA Cartoons Plus",
+    "icon": "movie",
+    "menuOpens": "screen",
+    "opensFrom": [
+      "menu",
+      "settings"
+    ],
+    "settingsButton": {
+      "label": "Abrir LA Cartoons Plus",
+      "labelEn": "Open LA Cartoons Plus"
+    },
+    "settingsIn": "screen"
+  },
+  "consumes": {
+    "resolver": {
+      "repo": "xuper-plugin/kino-plugin-kino-resolver",
+      "door": "resolver",
+      "calls": [
+        "resolve"
+      ]
     }
   }
 }
