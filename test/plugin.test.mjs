@@ -19,6 +19,11 @@ globalThis.kino = {
   fetch: async (url, opts = {}) => {
     calls.push({ url, opts });
     const p = pages[url];
+    // A stream the resolver handed back answers a peek, unless a test lists it as down.
+    if (!p && /\.(m3u8|mp4)(\?|$)|okcdn/.test(url)) {
+      if (deadStreams.has(url)) return { ok: false, status: 504, url, text: () => "" };
+      return { ok: true, status: 206, url, text: () => (/\.m3u8/.test(url) ? "#EXTM3U\n" : "\0\0 ftyp") };
+    }
     const status = p?.status ?? (p ? 200 : 404);
     return { ok: status < 400, status, url, text: () => p?.body ?? "", json: () => JSON.parse(p?.body ?? "{}") };
   },
@@ -34,12 +39,21 @@ globalThis.kino = {
   sleep: (ms) => new Promise((r) => setTimeout(r, Math.min(ms, 5))), // the runtime has it; Home waits on short sleeps
   log: (...a) => logs.push(a.join(" ")),
   error: (code, message, opts = {}) => Object.assign(new Error(message), { code, ...opts }),
+  // The shared kino-resolver door: [door] answers `resolve`; `resolverUp` false = not installed.
+  plugins: { call: async (alias, method, args) => {
+    if (method === "normalizeHost") { if (!resolverUp) throw Object.assign(new Error("missing"), { code: "provider_missing" }); return { server: "x" }; }
+    if (method === "resolve") { doorAsked.push(args.url); return door(args); }
+    throw Object.assign(new Error(method), { code: "not_declared" });
+  } },
 };
+let resolverUp = true;
+const deadStreams = new Set();
+const doorAsked = [];
+const NONE = { streams: [], error: "needs_browser" };
+let door = () => NONE;
 const plugin = await import("../plugin.js");
-const { settingsOf } = await import("../src/extractors/rpmvid.js");
-const { extractorFor } = await import("../src/extractors/index.js");
 
-beforeEach(() => { calls.length = 0; pages = {}; logs = []; store = new Map(); lang = "es"; cfg = {}; });
+beforeEach(() => { calls.length = 0; pages = {}; logs = []; store = new Map(); lang = "es"; cfg = {}; resolverUp = true; deadStreams.clear(); doorAsked.length = 0; door = () => NONE; });
 
 const S = "https://www.lacartoons.com";
 const LISTING = fixture("listing.html");
@@ -55,13 +69,14 @@ const installRpm = (vid = "qldpb") => {
 };
 const OKRU_PAGE = `<div data-module="OKVideo" data-options="${JSON.stringify({ flashvars: { metadata: JSON.stringify({ videos: [{ name: "mobile", url: "https://vd1.okcdn.ru/m" }, { name: "hd", url: "https://vd1.okcdn.ru/hd" }, { name: "sd", url: "https://vd1.okcdn.ru/sd" }] }) } }).replace(/"/g, "&quot;")}"></div>`;
 
-test("the manifest passes the kit's contract check and declares the site and both players", async () => {
+test("the manifest passes the kit's contract check, declares the site and uses the shared resolver", async () => {
   const text = readFileSync(new URL("../kino-plugin.json", import.meta.url), "utf8");
   const m = JSON.parse(text);
   const v = validateManifest(text);
   assert.ok(!v.errors?.length && v.ok !== false, JSON.stringify(v));
-  const { HOSTS } = await import("../src/extractors/index.js");
-  for (const h of ["www.lacartoons.com", "lacartoons.com", ...HOSTS]) assert.ok(m.hosts.includes(h), h);
+  for (const h of ["www.lacartoons.com", "lacartoons.com"]) assert.ok(m.hosts.includes(h), h);
+  assert.deepEqual(m.recommends, ["xuper-plugin/kino-plugin-kino-resolver"]);
+  assert.deepEqual(m.enhancements["20"].consumes.resolver, { repo: "xuper-plugin/kino-plugin-kino-resolver", door: "resolver", calls: ["resolve"] });
   assert.ok(m.capabilities.includes("download") && m.section && m.theme && m.icon);
 });
 
@@ -133,58 +148,70 @@ test("episodes: the series' name, network, synopsis and art, then every season w
   await assert.rejects(plugin.episodes("zz"), (e) => e.code === "not_found");
 });
 
-test("rpmvid: the AES answer is read, the playlist is the player's own, and it is sent with the player's Referer and Origin", async () => {
-  installEpisode(13, 1, [`${RPM_ORIGIN}/#qldpb`]);
-  installRpm();
-  const s = await plugin.resolve("e:13:1");
-  assert.equal(s.url, `${RPM_ORIGIN}/v4/pl/h/cvo/qldpb/master.m3u8?k=K&kx=1`, "cfNative, not the ad-laden TikTok route");
-  assert.equal(s.mime, "application/vnd.apple.mpegurl");
-  assert.equal(s.headers.Referer, RPM_ORIGIN + "/");
-  assert.equal(s.headers.Origin, RPM_ORIGIN);
-  assert.match(s.headers["User-Agent"], /Chrome/);
-  assert.equal(s.label, "RPMVid");
-  assert.equal(s.alternatives, undefined);
-});
+const OKRU = "https://ok.ru/videoembed/1398320007753", RPM = `${RPM_ORIGIN}/#qldpb`, DHT = "https://dhtpre.com/embed/xzg", ODD = "https://unknown.example/e/1";
+const okStream = { url: "https://vd1.okcdn.ru/hd", kind: "mp4", referer: "https://ok.ru/" };
+const vhStream = { url: "https://cdn.test/vh/master.m3u8", kind: "hls", referer: "https://callistanise.com/v/xzg", headers: [{ name: "User-Agent", value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0.0.0 Safari/537.36" }] };
+const rpmStream = { url: `${RPM_ORIGIN}/v4/pl/h/cvo/qldpb/master.m3u8?k=K`, kind: "hls", referer: RPM_ORIGIN + "/", headers: [{ name: "Origin", value: RPM_ORIGIN }] };
+const doorFor = (map) => ({ url }) => (map[url] ? { streams: [map[url]] } : NONE);
 
-test("rpmvid: a garbled answer or a video id that is not one gives nothing, not a crash", async () => {
-  assert.equal(settingsOf("zz", kino), null);
-  assert.equal(settingsOf(encrypt({ a: 1 }), kino).a, 1);
-  installEpisode(13, 1, [`${RPM_ORIGIN}/#qldpb`]);
-  pages[`${RPM_ORIGIN}/api/v1/video?id=qldpb&w=1280&h=720&r=www.lacartoons.com`] = { body: "not hex at all" };
-  await assert.rejects(plugin.resolve("e:13:1"), (e) => e.code === "not_found" && /Ningún servidor/.test(e.userMessage));
-  installEpisode(14, 1, [`${RPM_ORIGIN}/#`]);
-  await assert.rejects(plugin.resolve("e:14:1"), (e) => e.code === "not_found");
-});
-
-test("resolve: ok.ru is tried first (a plain MP4, best rendition, never the phone-sized one) and RPMVid follows as an alternative; settings can flip the order", async () => {
-  installEpisode(500, 2, ["https://ok.ru/videoembed/1398320007753", `${RPM_ORIGIN}/#qldpb`]);
-  pages["https://ok.ru/videoembed/1398320007753"] = { body: OKRU_PAGE };
-  installRpm();
+test("resolve: every player the page lists is offered (vidhide's dhtpre too), the quick ones first, RPMVid last", async () => {
+  installEpisode(500, 2, [RPM, OKRU, DHT, ODD]);
+  door = doorFor({ [DHT]: vhStream, [OKRU]: okStream, [RPM]: rpmStream });
   const s = await plugin.resolve("e:500:2");
-  assert.equal(s.url, "https://vd1.okcdn.ru/hd");
-  assert.equal(s.mime, "video/mp4");
-  assert.equal(s.label, "ok.ru");
-  assert.deepEqual(s.alternatives, [{ ref: "c:500:2:1", label: "RPMVid" }]);
+  assert.equal(s.label, "VidHide");
+  assert.equal(s.url, "https://cdn.test/vh/master.m3u8");
+  assert.equal(s.headers.Referer, "https://callistanise.com/v/xzg");
+  assert.match(s.headers["User-Agent"], /Chrome/);
+  assert.deepEqual(s.alternatives.map((a) => a.label), ["ok.ru", "unknown", "RPMVid"]);
+  assert.deepEqual(s.alternatives.map((a) => a.ref), ["c:500:2:1", "c:500:2:2", "c:500:2:3"]);
+});
+
+test("resolve: RPMVid through the resolver keeps the player's Referer and Origin; the settings can put it first, and c:<i> points at the stable list", async () => {
+  installEpisode(500, 2, [OKRU, RPM]);
+  door = doorFor({ [OKRU]: okStream, [RPM]: rpmStream });
   cfg.server = "rpmvid";
   const r = await plugin.resolve("e:500:2");
   assert.equal(r.label, "RPMVid");
-  assert.deepEqual(r.alternatives.map((a) => a.label), ["ok.ru"]);
+  assert.equal(r.headers.Referer, RPM_ORIGIN + "/");
+  assert.equal(r.headers.Origin, RPM_ORIGIN);
+  assert.equal(r.mime, "application/vnd.apple.mpegurl");
   const c = await plugin.resolve("c:500:2:0");
   assert.equal(c.label, "RPMVid", "with RPMVid preferred, server 0 of the list is RPMVid");
   assert.equal(c.alternatives, undefined);
 });
 
-test("resolve: a server that fails falls through to the next; all failing, or nothing known on the page, is a sentence for the person", async () => {
-  installEpisode(500, 2, ["https://ok.ru/videoembed/1", `${RPM_ORIGIN}/#qldpb`]);
-  pages["https://ok.ru/videoembed/1"] = { body: "<html>removed</html>" };
-  installRpm();
+test("resolve: a player that fails falls through; all failing is a sentence for the person; a bad ref is not_found", async () => {
+  installEpisode(500, 2, [OKRU, RPM]);
+  door = doorFor({ [RPM]: rpmStream });
   assert.equal((await plugin.resolve("e:500:2")).label, "RPMVid");
-  pages[`${RPM_ORIGIN}/api/v1/video?id=qldpb&w=1280&h=720&r=www.lacartoons.com`] = { status: 503, body: "" };
+  door = () => NONE;
   await assert.rejects(plugin.resolve("e:500:2"), (e) => e.code === "not_found" && /Ningún servidor/.test(e.userMessage));
-  installEpisode(7, 1, ["https://unknown.example/e/1"]);
-  await assert.rejects(plugin.resolve("e:7:1"), (e) => e.code === "not_found");
   await assert.rejects(plugin.resolve("x:1"), (e) => e.code === "not_found");
-  assert.equal(extractorFor("https://voe.sx/e/1"), null);
+});
+
+test("resolve: a resolved stream whose CDN does not answer is passed over (peeked at, not downloaded)", async () => {
+  installEpisode(500, 2, [DHT, OKRU]);
+  door = doorFor({ [DHT]: vhStream, [OKRU]: okStream });
+  deadStreams.add(vhStream.url);
+  const s = await plugin.resolve("e:500:2");
+  assert.equal(s.label, "ok.ru");
+  assert.ok(calls.some((c) => c.url === vhStream.url && c.opts.maxBytes === 2048));
+});
+
+test("resolve: the ranking learns which player loads for this person and tries it first next time", async () => {
+  installEpisode(500, 2, [DHT, OKRU]);
+  door = doorFor({ [OKRU]: okStream }); // vidhide (first by default) gives nothing
+  assert.equal((await plugin.resolve("e:500:2")).label, "ok.ru");
+  door = doorFor({ [DHT]: vhStream, [OKRU]: okStream });
+  doorAsked.length = 0;
+  assert.equal((await plugin.resolve("e:500:2")).label, "ok.ru", "ok.ru loaded before, so it goes first now");
+  assert.equal(doorAsked[0], OKRU);
+});
+
+test("resolve: without the shared resolver installed it asks to install the playback engine (never naming the brand)", async () => {
+  installEpisode(500, 2, [OKRU]);
+  resolverUp = false;
+  await assert.rejects(plugin.resolve("e:500:2"), (e) => e.code === "unavailable" && /motor de reproducci/.test(e.userMessage) && !/kino/i.test(e.userMessage));
 });
 
 test("settings: the status line counts the lists kept and the action clears them, in both languages", async () => {
