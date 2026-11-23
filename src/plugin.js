@@ -290,7 +290,7 @@ export async function action(key) {
 
 // LA Cartoons Plus delegates every player to kino-resolver (resolve() refuses with needResolver while it is missing), so the screen is the install gate until it is installed.
 let std = null;
-const standard = () => (std ??= makeStandardScreen({
+const standard = () => (std ??= makeStandardScreen({ snapshot: "xuper-plugin/kino-plugin-lacartoons",
   kino, name: "LA Cartoons Plus", logo: LOGO, logoAspect: LOGO_ASPECT, needsResolver: true, hasSettings: true,
   tabs: NETWORKS.map((n) => ({ id: n.slug, label: n.title, labelEn: n.title })),
   loadTab: async (tabId) => ({ rows: (await section({ tab: tabId })).rows }),
