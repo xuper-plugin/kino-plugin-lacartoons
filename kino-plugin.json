@@ -1,7 +1,7 @@
 {
   "id": "lacartoons",
   "name": "LA Cartoons Plus",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "apiVersion": 20,
   "entry": "plugin.js",
   "icon": "icon.png",
@@ -15,6 +15,7 @@
     "cubeembed.rpmvid.com",
     "rpmvid.com"
   ],
+  "fetchHosts": "any",
   "capabilities": [
     "search",
     "home",
