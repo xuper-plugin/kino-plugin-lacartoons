@@ -1,7 +1,7 @@
 {
   "id": "lacartoons",
   "name": "LA Cartoons Plus",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "apiVersion": 30,
   "entry": "plugin.js",
   "icon": "icon.png",
@@ -117,5 +117,36 @@
         "resolve"
       ]
     }
+  },
+  "provides": {
+    "catalog": {
+      "summary": "Titles this plugin finds, for the author's other plugins",
+      "calls": {
+        "search": {
+          "in": {
+            "q": "string",
+            "type": "string?"
+          },
+          "out": "Item[]"
+        }
+      },
+      "types": {
+        "Item": {
+          "id": "string",
+          "ref": "string",
+          "title": "string",
+          "kind": "string",
+          "poster": "string?",
+          "backdrop": "string?",
+          "year": "string?",
+          "overview": "string?",
+          "tmdb": "number?"
+        }
+      }
+    }
+  },
+  "signature": {
+    "authorKey": "6693946bd5c56196960959c4b9665fad5094374bcb85ddb282f8bf762c835263",
+    "value": "8185cdc5abe9516c93df1f665b98923b3cd6526f5b8d0ec3aefedffa370e2cfde3744d3aada79ed797757c0a3c816a2cf134b54447376894ef86ee04e36d2406"
   }
 }
