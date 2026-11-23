@@ -1,7 +1,7 @@
 {
   "id": "lacartoons",
   "name": "LA Cartoons Plus",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "apiVersion": 20,
   "entry": "plugin.js",
   "icon": "icon.png",

@@ -248,3 +248,11 @@ test("resolve: RPMVid, which the resolver can't open inline, plays from the hidd
     assert.equal(pages.length, 1);
   } finally { delete globalThis.kino.browser; }
 });
+
+test("resolve: a stream whose CDN is only slow (the peek times out) is still handed to the player", async () => {
+  installEpisode(500, 2, [DHT]);
+  door = doorFor({ [DHT]: vhStream });
+  const real = globalThis.kino.fetch;
+  globalThis.kino.fetch = async (url, opts) => (url === vhStream.url ? Promise.reject(Object.assign(new Error("slow"), { code: "timeout" })) : real(url, opts));
+  try { assert.equal((await plugin.resolve("e:500:2")).url, vhStream.url); } finally { globalThis.kino.fetch = real; }
+});
