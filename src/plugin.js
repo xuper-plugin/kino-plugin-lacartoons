@@ -27,13 +27,13 @@ const CACHE_MS = 10 * 60 * 1000;
 const STRINGS = {
   es: {
     more: "Más de", heroText: "Dibujos animados clásicos, doblados al español.", series: "Serie", season: "Temporada", episode: "Capítulo",
-    unavailable: "El servicio no está disponible en este momento.", noEpisodes: "No se encontraron capítulos de esta serie.", noStreams: "Ningún servidor de este capítulo abrió. Prueba más tarde.",
+    unavailable: "El servicio no está disponible en este momento.", noEpisodes: "No se encontraron capítulos de esta serie.", noStreams: "Ningún servidor de este capítulo abrió. Prueba más tarde.", removed: "Este capítulo fue retirado del servidor donde estaba (por ejemplo, por derechos de autor). Prueba con otro capítulo.",
     statusLine: "Listas guardadas: {n}", cacheCleared: "Caché vaciada.",
     needResolver: "Para reproducir, abre LA Cartoons Plus desde el menú e instala el motor de reproducción que te pedirá.",
   },
   en: {
     more: "More from", heroText: "Classic cartoons, dubbed in Spanish.", series: "Series", season: "Season", episode: "Episode",
-    unavailable: "The service is not available right now.", noEpisodes: "No episodes found for this series.", noStreams: "No server of this episode opened. Try again later.",
+    unavailable: "The service is not available right now.", noEpisodes: "No episodes found for this series.", noStreams: "No server of this episode opened. Try again later.", removed: "This episode was taken down from the server that had it (for example, for copyright). Try another episode.",
     statusLine: "Lists kept: {n}", cacheCleared: "Cache cleared.",
     needResolver: "To play, open LA Cartoons Plus from the menu and install the playback engine it asks for.",
   },
@@ -214,11 +214,13 @@ async function answers(stream) {
 
 /**
  * One player opened through the shared kino-resolver; one it can't open inline (RPMVid's turboembed, a gated host) is captured in
- * LA Cartoons Plus's own hidden WebView while the budget allows. A resolved stream is peeked at first. Null when nothing plays.
+ * LA Cartoons Plus's own hidden WebView while the budget allows. A resolved stream is peeked at first. "dead" when the player
+ * is gone (the resolver says so: deleted, blocked for copyright); null when nothing plays.
  */
 async function open(p, budget) {
   try {
     const out = await resolveViaHelper(p.url, kino, SITE + "/", () => takeCapture(budget));
+    if (out && out.dead) { kino.log("[lacartoons]", p.kind, "dead"); return "dead"; }
     if (!out || typeof out.url !== "string" || !out.url) { kino.log("[lacartoons]", p.kind, "no_stream"); return null; }
     const stream = { url: out.url, ...(out.mime ? { mime: out.mime } : {}), headers: { "User-Agent": UA, ...(out.headers || {}) }, label: labelOf(p) };
     if (out.subtitles) stream.subtitles = out.subtitles;
@@ -246,10 +248,13 @@ export async function resolve(ref) {
   const budget = { captures: MAX_CAPTURES, deadline: Date.now() + RESOLVE_MS };
   const indexes = only != null ? [only] : players.map((_, i) => i).sort((a, b) => scoreOf(players[b].kind, stats) - scoreOf(players[a].kind, stats) || a - b);
   const failures = [];
+  let gone = 0;
   for (const i of indexes) {
     const p = players[i];
     if (!p) continue;
-    const stream = await open(p, budget);
+    const got = await open(p, budget);
+    if (got === "dead") { gone++; failures.push(`${p.kind}: removed`); continue; } // the video is gone, not the server
+    const stream = got;
     noteServer(p.kind, !!stream);
     if (!stream) { failures.push(`${p.kind}: no stream`); continue; }
     if (only == null) {
@@ -259,7 +264,9 @@ export async function resolve(ref) {
     return stream;
   }
   kino.log(`resolve ${id}/${season} failed: ${failures.join("; ")}`);
-  throw kino.error("not_found", "no player opened for " + pageUrl, { userMessage: t("noStreams") });
+  // Every player the episode lists is gone: say so, instead of "try again later" for a video that will not come back.
+  const all = only != null ? 1 : indexes.length;
+  throw kino.error("not_found", "no player opened for " + pageUrl, { userMessage: t(gone && gone === all ? "removed" : "noStreams") });
 }
 
 // ---- Ajustes ▸ LA Cartoons Plus ----

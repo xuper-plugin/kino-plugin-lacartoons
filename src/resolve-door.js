@@ -44,7 +44,8 @@ async function captureStreams(kino, embedUrl, referer) {
 /**
  * Resolve one hoster embed through the kino-resolver, falling back to a WebView capture when `allowCapture` (a boolean,
  * or a function that decides -- and spends the caller's budget -- right before the capture starts).
- * Returns open()'s shape ({ url, mime, headers, captured?, subtitles? }), or null when nothing plays.
+ * Returns open()'s shape ({ url, mime, headers, captured?, subtitles? }); { dead: true } when the resolver read the player as
+ * gone; null when nothing plays.
  */
 export async function resolveViaHelper(embedUrl, kino, referer, allowCapture = true) {
   let res = null;
@@ -58,14 +59,16 @@ export async function resolveViaHelper(embedUrl, kino, referer, allowCapture = t
   let captured = false;
   // `allowCapture` is a boolean or a function asked right before a capture would start (so a caller can spend its
   // capture budget on the attempt, and refuse when too little time is left for a 20 s page).
-  if (!streams.length && (typeof allowCapture === "function" ? allowCapture() : allowCapture)) { streams = await captureStreams(kino, embedUrl, referer); captured = streams.length > 0; }
+  // A player the resolver read as gone (deleted, blocked for copyright) has nothing a 20 s capture could find.
+  const dead = !streams.length && res && res.error === "dead";
+  if (!streams.length && !dead && (typeof allowCapture === "function" ? allowCapture() : allowCapture)) { streams = await captureStreams(kino, embedUrl, referer); captured = streams.length > 0; }
   const s = pickBest(streams);
-  if (!s) return null;
+  if (!s) return dead ? { dead: true } : null;
   const headers = headersOf(s);
   const isHls = s.kind === "hls" || /\.m3u8(\?|$)/i.test(s.url);
   return {
     url: s.url,
-    mime: isHls ? HLS_MIME : (/\.mp4(\?|$)/i.test(s.url) ? "video/mp4" : undefined),
+    mime: isHls ? HLS_MIME : (s.kind === "mp4" || /\.mp4(\?|$)/i.test(s.url) ? "video/mp4" : undefined),
     ...(Object.keys(headers).length ? { headers } : {}),
     ...(captured ? { captured: true } : {}),
     ...(subtitles.length ? { subtitles } : {}),

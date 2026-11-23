@@ -637,17 +637,18 @@ async function resolveViaHelper(embedUrl, kino2, referer, allowCapture = true) {
   let streams = res && Array.isArray(res.streams) ? res.streams.slice() : [];
   const subtitles = res && Array.isArray(res.subtitles) ? res.subtitles.filter((x) => x && x.lang && x.url) : [];
   let captured = false;
-  if (!streams.length && (typeof allowCapture === "function" ? allowCapture() : allowCapture)) {
+  const dead = !streams.length && res && res.error === "dead";
+  if (!streams.length && !dead && (typeof allowCapture === "function" ? allowCapture() : allowCapture)) {
     streams = await captureStreams(kino2, embedUrl, referer);
     captured = streams.length > 0;
   }
   const s = pickBest(streams);
-  if (!s) return null;
+  if (!s) return dead ? { dead: true } : null;
   const headers = headersOf(s);
   const isHls = s.kind === "hls" || /\.m3u8(\?|$)/i.test(s.url);
   return {
     url: s.url,
-    mime: isHls ? HLS_MIME : /\.mp4(\?|$)/i.test(s.url) ? "video/mp4" : void 0,
+    mime: isHls ? HLS_MIME : s.kind === "mp4" || /\.mp4(\?|$)/i.test(s.url) ? "video/mp4" : void 0,
     ...Object.keys(headers).length ? { headers } : {},
     ...captured ? { captured: true } : {},
     ...subtitles.length ? { subtitles } : {}
@@ -745,6 +746,7 @@ var STRINGS = {
     unavailable: "El servicio no est\xE1 disponible en este momento.",
     noEpisodes: "No se encontraron cap\xEDtulos de esta serie.",
     noStreams: "Ning\xFAn servidor de este cap\xEDtulo abri\xF3. Prueba m\xE1s tarde.",
+    removed: "Este cap\xEDtulo fue retirado del servidor donde estaba (por ejemplo, por derechos de autor). Prueba con otro cap\xEDtulo.",
     statusLine: "Listas guardadas: {n}",
     cacheCleared: "Cach\xE9 vaciada.",
     needResolver: "Para reproducir, abre LA Cartoons Plus desde el men\xFA e instala el motor de reproducci\xF3n que te pedir\xE1."
@@ -758,6 +760,7 @@ var STRINGS = {
     unavailable: "The service is not available right now.",
     noEpisodes: "No episodes found for this series.",
     noStreams: "No server of this episode opened. Try again later.",
+    removed: "This episode was taken down from the server that had it (for example, for copyright). Try another episode.",
     statusLine: "Lists kept: {n}",
     cacheCleared: "Cache cleared.",
     needResolver: "To play, open LA Cartoons Plus from the menu and install the playback engine it asks for."
@@ -934,6 +937,10 @@ async function answers(stream) {
 async function open(p, budget) {
   try {
     const out = await resolveViaHelper(p.url, kino, SITE + "/", () => takeCapture(budget));
+    if (out && out.dead) {
+      kino.log("[lacartoons]", p.kind, "dead");
+      return "dead";
+    }
     if (!out || typeof out.url !== "string" || !out.url) {
       kino.log("[lacartoons]", p.kind, "no_stream");
       return null;
@@ -959,10 +966,17 @@ async function resolve(ref) {
   const budget = { captures: MAX_CAPTURES, deadline: Date.now() + RESOLVE_MS };
   const indexes = only != null ? [only] : players.map((_, i) => i).sort((a, b) => scoreOf(players[b].kind, stats) - scoreOf(players[a].kind, stats) || a - b);
   const failures = [];
+  let gone = 0;
   for (const i of indexes) {
     const p = players[i];
     if (!p) continue;
-    const stream = await open(p, budget);
+    const got = await open(p, budget);
+    if (got === "dead") {
+      gone++;
+      failures.push(`${p.kind}: removed`);
+      continue;
+    }
+    const stream = got;
     noteServer(p.kind, !!stream);
     if (!stream) {
       failures.push(`${p.kind}: no stream`);
@@ -975,7 +989,8 @@ async function resolve(ref) {
     return stream;
   }
   kino.log(`resolve ${id}/${season} failed: ${failures.join("; ")}`);
-  throw kino.error("not_found", "no player opened for " + pageUrl, { userMessage: t("noStreams") });
+  const all = only != null ? 1 : indexes.length;
+  throw kino.error("not_found", "no player opened for " + pageUrl, { userMessage: t(gone && gone === all ? "removed" : "noStreams") });
 }
 async function settingsStatus() {
   let n = 0;

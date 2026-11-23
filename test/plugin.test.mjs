@@ -256,3 +256,14 @@ test("resolve: a stream whose CDN is only slow (the peek times out) is still han
   globalThis.kino.fetch = async (url, opts) => (url === vhStream.url ? Promise.reject(Object.assign(new Error("slow"), { code: "timeout" })) : real(url, opts));
   try { assert.equal((await plugin.resolve("e:500:2")).url, vhStream.url); } finally { globalThis.kino.fetch = real; }
 });
+
+test("resolve: an episode whose only player was taken down says so (no 'try later'), and no hidden page is opened for it", async () => {
+  installEpisode(500, 2, [OKRU]);
+  door = () => ({ streams: [], error: "dead" });
+  const pages = [];
+  globalThis.kino.browser = { capture: async (url) => { pages.push(url); return { media: [] }; } };
+  try {
+    await assert.rejects(plugin.resolve("e:500:2"), (e) => e.code === "not_found" && /retirado/.test(e.userMessage) && !/kino/i.test(e.userMessage));
+    assert.equal(pages.length, 0, "a dead player costs no 20 s capture");
+  } finally { delete globalThis.kino.browser; }
+});
