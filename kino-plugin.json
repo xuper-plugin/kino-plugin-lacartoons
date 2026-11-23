@@ -1,7 +1,7 @@
 {
   "id": "lacartoons",
   "name": "LA Cartoons Plus",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "apiVersion": 30,
   "entry": "plugin.js",
   "icon": "icon.png",
@@ -147,6 +147,6 @@
   },
   "signature": {
     "authorKey": "6693946bd5c56196960959c4b9665fad5094374bcb85ddb282f8bf762c835263",
-    "value": "8185cdc5abe9516c93df1f665b98923b3cd6526f5b8d0ec3aefedffa370e2cfde3744d3aada79ed797757c0a3c816a2cf134b54447376894ef86ee04e36d2406"
+    "value": "d5eef64fb1a24690a7218b0b4de3414cf9f4a88f5386d25d3abb5d67a4e45ac10c9b2a98a3b785622f6e81716be971d3082625e45d4b6dcbe066fc149e0c4707"
   }
 }
