@@ -76,7 +76,7 @@ test("the manifest passes the kit's contract check, declares the site and uses t
   assert.ok(!v.errors?.length && v.ok !== false, JSON.stringify(v));
   for (const h of ["www.lacartoons.com", "lacartoons.com"]) assert.ok(m.hosts.includes(h), h);
   assert.deepEqual(m.recommends, ["xuper-plugin/kino-plugin-kino-resolver"]);
-  assert.equal(m.apiVersion, 20);
+  assert.equal(m.apiVersion, 30);
   assert.equal(m.browser, true);
   assert.ok(m.capabilities.includes("screen") && m.screen);
   assert.deepEqual(m.consumes.resolver, { repo: "xuper-plugin/kino-plugin-kino-resolver", door: "resolver", calls: ["resolve"] });

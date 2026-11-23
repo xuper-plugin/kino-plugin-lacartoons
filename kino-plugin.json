@@ -1,8 +1,8 @@
 {
   "id": "lacartoons",
   "name": "LA Cartoons Plus",
-  "version": "0.3.3",
-  "apiVersion": 20,
+  "version": "0.4.0",
+  "apiVersion": 30,
   "entry": "plugin.js",
   "icon": "icon.png",
   "description": "Dibujos animados clásicos doblados al español de lacartoons.com: por cadena (Nickelodeon, Cartoon Network, Disney…), con sección propia, categorías, temporadas y capítulos.",
