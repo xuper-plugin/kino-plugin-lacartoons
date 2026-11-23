@@ -22,7 +22,6 @@ const source = std.snapshotSource();
 if (!source) { console.error("no standard screen (std 1.8.1) in this plugin"); process.exit(1); }
 
 const MIN_ROWS = 4; // the first tab (the Home) never opens with fewer rows than this when the other tabs have more
-const MAX_ROWS = 6;
 const SLIDE_CANDIDATES = 24; // titles asked to TMDB per tab for the slider, in row order
 const KEEP_MS = 12 * 60 * 60 * 1000; // unchanged rows under this age are not rewritten: a commit only when the Home changed
 
@@ -64,9 +63,9 @@ for (const t of source.tabs) {
   try { live[t.id] = cleanRows(await source.loadTab(t.id)); } catch (e) { live[t.id] = null; console.log(`${t.id}: failed (${(e && e.code) || "error"}: ${String((e && e.message) || e).slice(0, 160)})`); }
 }
 
-/** The Home: its own rows, then the other tabs' rows it lacks (by title), up to MIN_ROWS at least and MAX_ROWS at most. */
+/** The Home: its own rows, then the other tabs' rows it lacks (by title), until it has MIN_ROWS. */
 function richHome(rows) {
-  const out = rows.filter((r) => !r.hidden).slice(0, MAX_ROWS);
+  const out = rows.filter((r) => !r.hidden); // every row of its own: more than MIN_ROWS is welcome (owner, 2026-11-23)
   const titles = new Set(out.map((r) => String(r.title || "").toLowerCase()));
   for (const t of source.tabs.slice(1)) {
     for (const r of live[t.id] || []) {
