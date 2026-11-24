@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.8
+
+- Categorías: every network tile now shows a picture (a famous cartoon of the network, static, no extra requests; Otros stays plain)
+
 ## 0.4.7
 
 - A rich Home that opens at once: a ready slider (TMDB backdrops and synopses) and at least 4 rows, from a snapshot in this repository refreshed every 6 hours (the site only as a fallback) (std 1.8.1)

@@ -267,3 +267,9 @@ test("resolve: an episode whose only player was taken down says so (no 'try late
     assert.equal(pages.length, 0, "a dead player costs no 20 s capture");
   } finally { delete globalThis.kino.browser; }
 });
+
+test("categories: every network tile has a static https TMDB art picture, except Otros (no single network)", async () => {
+  const c = await plugin.categories();
+  assert.deepEqual(c.filter((x) => !x.art).map((x) => x.id), ["n-otros"]);
+  for (const x of c.filter((y) => y.art)) assert.match(x.art, /^https:\/\/image\.tmdb\.org\/t\/p\/w780\/[A-Za-z0-9]+\.jpg$/, x.id);
+});

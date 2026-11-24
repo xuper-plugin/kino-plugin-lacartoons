@@ -129,8 +129,26 @@ export async function section({ tab } = {}) {
   return answer;
 }
 
+// ---- categories: a picture for every tile ----
+
+/**
+ * One picture per network tile: a well-known title of it, as its TMDB backdrop at w780, each checked with a request (200, image/jpeg). Static on purpose: no extra request at runtime. Keys are the network slugs; "otros" is no single network, so it gets no art (Kino draws its plain tile).
+ * Kino draws a tile's picture from `art` (any public https image).
+ */
+const TM = "https://image.tmdb.org/t/p/w780";
+const TILE_ART = {
+  nickelodeon: TM + "/f3f5OzzYd8m3zN47DAjKs0sbx00.jpg",
+  "cartoon-network": TM + "/gnK2nptRXra4RnKgGqAWFSqP5aG.jpg",
+  "fox-kids": TM + "/8GlKBQJTFZp9mpLXJrmNCtdTyxx.jpg",
+  "hanna-barbera": TM + "/wtIJW0ee02l9FDnklPIMAuYdhqS.jpg",
+  disney: TM + "/xITlloKrbhwDsY1L8eaMMHHXCf.jpg",
+  warner: TM + "/8TThBwlIZnzCFkj21rv5Nv2lTNG.jpg",
+  marvel: TM + "/tszlsbfyTOPSZe2z6K4mwHtcnmI.jpg",
+};
+const withArt = (tile, art) => (art ? { ...tile, art } : tile);
+
 export async function categories() {
-  return NETWORKS.map((n) => ({ id: "n-" + n.slug, title: n.title, ref: "cat:" + n.id }));
+  return NETWORKS.map((n) => withArt({ id: "n-" + n.slug, title: n.title, ref: "cat:" + n.id }, TILE_ART[n.slug]));
 }
 
 // ---- a series: its seasons and episodes ----
