@@ -87,6 +87,7 @@ test("home: a row per network, each card a series with the site's poster and its
   for (let n = 1; n <= 8; n++) pages[`${S}/?Categoria_id=${n}`] = { body: LISTING };
   const rows = await plugin.home();
   assert.deepEqual(rows.map((r) => r.title), ["Nickelodeon", "Cartoon Network", "Fox Kids", "Hanna Barbera", "Disney", "Warner Channel", "Marvel", "Otros"]);
+  for (const r of rows) assert.equal(r.genre, "infantil", r.id + " is typed infantil for Kino's Home by categories");
   assert.equal(rows[1].ref, "cat:2");
   const first = rows[1].items[0];
   assert.equal(first.kind, "series");
