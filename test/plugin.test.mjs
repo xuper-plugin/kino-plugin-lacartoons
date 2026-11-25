@@ -109,6 +109,20 @@ test("browse: pages of a network, the next page only on a full page of sixteen",
   assert.deepEqual((await plugin.browse("cat:9", null)).items, []);
 });
 
+test("\"Más de <cadena>\" is page 2 of the network: its Ver más goes on from page 2, never back to page 1", async () => {
+  const page = (n) => ({ body: `<div class="conjuntos-series">${Array.from({ length: 16 }, (_, i) => `<a href="/serie/${n * 100 + i}"><img src="/rails/p${i}.jpg"><p class="nombre-serie">Serie ${n}-${i}</p></a>`).join("")}</div>` });
+  for (const n of [1, 2, 3]) pages[`${S}/?Categoria_id=4${n > 1 ? "&page=" + n : ""}`] = page(n);
+  const { rows } = await plugin.section({ tab: "hanna-barbera" });
+  const second = rows[1];
+  assert.equal(second.ref, "cat:4:p2");
+  const p2 = await plugin.browse(second.ref, null);
+  assert.deepEqual(p2.items.map((i) => i.ref), second.items.map((i) => i.ref), "Ver más opens on the row's own page");
+  assert.equal(p2.next, "3");
+  assert.equal((await plugin.browse(second.ref, p2.next)).items[0].ref, "s:300");
+  assert.equal((await plugin.browse("cat:4", null)).items[0].ref, "s:100", "the plain network still starts at page 1");
+  assert.deepEqual((await plugin.browse("cat:4:p0", null)).items, []);
+});
+
 test("search: the site's own search, one letter allowed, never more than sixty", async () => {
   const many = `<div class="conjuntos-series">${Array.from({ length: 90 }, (_, i) => `<a href="/serie/${i + 1}"><img src="/r${i}.jpg"><p class="nombre-serie">S ${i}</p></a>`).join("")}</div>`;
   pages[`${S}/?Titulo=a`] = { body: many };

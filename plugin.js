@@ -1150,10 +1150,10 @@ async function home() {
   return homeWithin(NETWORKS.map((n) => () => safeRow(n.slug, () => rowOf(n))));
 }
 async function browse(ref, cursor) {
-  const m = /^cat:(\d)$/.exec(String(ref || ""));
+  const m = /^cat:(\d)(?::p([1-9]\d{0,3}))?$/.exec(String(ref || ""));
   const network = m && networkOf(m[1]);
   if (!network) return { items: [] };
-  const page = cursor ? Math.max(1, parseInt(cursor, 10) || 1) : 1;
+  const page = cursor ? Math.max(1, parseInt(cursor, 10) || 1) : m[2] ? Number(m[2]) : 1;
   const cards = await networkPage(network, page);
   return { items: cards.map((c) => toItem(c, network)), next: cards.length >= 16 ? String(page + 1) : void 0 };
 }
@@ -1172,7 +1172,7 @@ async function section({ tab } = {}) {
   if (first) rows.push(first);
   const second = await safeRow(network.slug + "-2", async () => {
     const items = (await networkPage(network, 2)).map((c) => toItem(c, network));
-    return items.length ? { id: network.slug + "-2", title: `${t("more")} ${network.title}`, items, genre: "infantil" } : null;
+    return items.length ? { id: network.slug + "-2", title: `${t("more")} ${network.title}`, items, ref: "cat:" + network.id + ":p2", genre: "infantil" } : null;
   });
   if (second) rows.push(second);
   const answer = { tabs, tab: network.slug, rows };
